@@ -16,7 +16,7 @@ namespace dotnet_tutorial.Controllers
         // The required scopes for our app
         private static string[] scopes = { 
                                            "https://outlook.office.com/mail.read",
-                                           "https://outlook.office.com/calendars.read",
+                                           "https://outlook.office.com/calendars.readwrite",
                                            "https://outlook.office.com/contacts.read"
                                          };
 
@@ -203,6 +203,92 @@ namespace dotnet_tutorial.Controllers
             ViewBag.Message = "Your contact page.";
 
             return View();
+        }
+
+        public async Task<ActionResult> Create()
+        {
+            string token = (string)Session["access_token"];
+            string email = (string)Session["user_email"];
+            if (string.IsNullOrEmpty(token))
+            {
+                // If there's no token in the session, redirect to Home
+                return Redirect("/");
+            }
+
+            try
+            {
+                OutlookServicesClient client = new OutlookServicesClient(new Uri("https://outlook.office.com/api/v2.0"),
+                    async () =>
+                    {
+                        // Since we have it locally from the Session, just return it here.
+                        return token;
+                    });
+
+              
+                Location location = new Location
+                {
+                    DisplayName = "Water cooler"
+                };
+
+                // Create a description for the event    
+                ItemBody body = new ItemBody
+                {
+                    Content = "Status updates, blocking issues, and next steps",
+                    ContentType = BodyType.Text
+                };
+
+                // Create the event object
+                DateTimeTimeZone start=new DateTimeTimeZone() ;
+                string dateTimeFormat = "yyyy-MM-ddThh:mm:ss";
+                string timeZone = "Pacific Standard Time";//"Eastern Standard Time";
+
+                start.DateTime = new DateTime(2016, 1, 22, 14, 30, 0).ToString(dateTimeFormat);
+                start.TimeZone = timeZone;
+
+                DateTimeTimeZone end = new DateTimeTimeZone();
+                end.DateTime = new DateTime(2016, 1, 22, 15, 30, 0).ToString(dateTimeFormat);
+                end.TimeZone = timeZone;
+
+                Event newEvent = new Event
+                {
+                    Subject = "Sync up",
+                    Location = location,
+                    Start = start,
+                    End = end,
+                    Body = body
+                };
+
+                newEvent.Recurrence = new PatternedRecurrence();
+                newEvent.Recurrence.Range = new RecurrenceRange();
+
+                string dateFormat = "yyyy-MM-dd";
+                newEvent.Recurrence.Range.EndDate = DateTime.Now.AddYears(1).ToString(dateFormat);
+                newEvent.Recurrence.Range.StartDate = DateTime.Now.ToString(dateFormat);
+                newEvent.Recurrence.Range.NumberOfOccurrences = 11;
+
+                newEvent.Recurrence.Pattern = new RecurrencePattern();
+                newEvent.Recurrence.Pattern.Type = RecurrencePatternType.Weekly;
+                newEvent.Recurrence.Pattern.Interval = 1;
+                newEvent.Recurrence.Pattern.DaysOfWeek= new List<Microsoft.Office365.OutlookServices.DayOfWeek>() { Microsoft.Office365.OutlookServices.DayOfWeek.Friday };
+                // Add the event to the default calendar
+                await client.Me.Events.AddEventAsync(newEvent);
+
+
+                //client.Me.Calendars.AddCalendarAsync()
+                //client.Me.Calendars.AddCalendarAsync(new ICalendar)
+                var eventResults = await client.Me.Events
+                                    .OrderByDescending(e => e.Start.DateTime)
+                                    .Take(10)
+                                    .Select(e => new Models.DisplayEvent(e.Subject, e.Start.DateTime, e.End.DateTime))
+                                    .ExecuteAsync();
+
+                return View("Calendar",eventResults.CurrentPage);
+            }
+            catch (AdalException ex)
+            {
+                return Content(string.Format("ERROR retrieving events: {0}", ex.Message));
+            }
+
         }
 
         private string GetUserEmail(AuthenticationContext context, string clientId)
