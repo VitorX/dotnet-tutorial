@@ -205,6 +205,7 @@ namespace dotnet_tutorial.Controllers
             return View();
         }
 
+        
         public async Task<ActionResult> Create()
         {
             string token = (string)Session["access_token"];
@@ -342,6 +343,22 @@ namespace dotnet_tutorial.Controllers
 
             // User's email is in the preferred_username field
             return jwt.preferred_username;
+        }
+
+        public ContentResult GetJSON()
+        {
+            string JSONData = "{\"name\":\"jack\"}";
+            return this.Content(JSONData, "application/json");
+
+        }
+
+        //public JsonResult GetJSON()
+        //{
+        //    return Json(new Person() { name = "Jack1" },JsonRequestBehavior.AllowGet);
+        //}
+
+        public class Person {
+            public string name;
         }
     }
 }
